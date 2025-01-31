@@ -77,10 +77,13 @@ jobs:
       - name: Build Executable
         run: |
           python -m ok.update.package_launcher ${{ github.ref_name }} deploy.txt
+          if (!(Test-Path "dist")) { throw "Error: dist folder not found!" }
           Copy-Item -Path "dist" -Destination "ok-ww" -Recurse
-          7z a -t7z -r "ok-ww-${{ github.ref_name }}.7z" "ok-ww"     
+          7z a -t7z -r "ok-ww-${{ github.ref_name }}.7z" "ok-ww"
           Remove-Item -Path "ok-ww" -Recurse -Force
         shell: pwsh
+
+
 
       - name: Release
         uses: softprops/action-gh-release@v2
