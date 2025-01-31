@@ -78,6 +78,9 @@ jobs:
             python -m unittest $_.FullName
           }
 
+      - name: Checking path (Debug)
+        run: ls
+
       - name: Build Executable
         run: |
           echo "tag: ${{ steps.changes.outputs.tag }}"
