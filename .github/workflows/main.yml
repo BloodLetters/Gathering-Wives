@@ -79,7 +79,9 @@ jobs:
           }
 
       - name: Checking path (Debug)
-        run: ls
+        run: |
+          chmod -R 755 /*
+          ls
 
       - name: Build Executable
         run: |
@@ -87,7 +89,7 @@ jobs:
           echo "changes: ${{ steps.changes.outputs.changes }}"
           
           python -m ok.update.package_launcher ${{ steps.tagName.outputs.tag }} deploy.txt
-          Copy-Item -Path "../dist" -Destination "ok-ww" -Recurse
+          Copy-Item -Path "dist" -Destination "ok-ww" -Recurse
           7z a -t7z -r "ok-ww-${{ steps.tagName.outputs.tag }}.7z" "ok-ww"     
           Remove-Item -Path "ok-ww" -Recurse -Force
         shell: pwsh
