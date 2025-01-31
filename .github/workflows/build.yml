@@ -74,11 +74,10 @@ jobs:
 
       - name: Build Executable
         run: |
-          if (!(Test-Path "dist")) { Write-Host "Error: dist directory not found!"; exit 1 }
           python -m ok.update.package_launcher ${{ github.ref_name }} deploy.txt
-          Copy-Item -Path "dist" -Destination "gathering-wives" -Recurse
-          7z a -t7z -r "gathering-wives-${{ github.ref_name }}.7z" "gathering-wives"
-          Remove-Item -Path "gathering-wives" -Recurse -Force
+          Copy-Item -Path "dist" -Destination "ok-ww" -Recurse
+          7z a -t7z -r "ok-ww-${{ github.ref_name }}.7z" "ok-ww"     
+          Remove-Item -Path "ok-ww" -Recurse -Force
         shell: pwsh
 
       - name: Release
