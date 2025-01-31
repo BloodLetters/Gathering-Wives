@@ -81,7 +81,7 @@ jobs:
       - name: Checking path (Debug)
         run: |
           ls
-          chmod -R 755 "./Wuthering-Wives/*"
+          chmod -R 755 "D:/a/Gathering-Wives/Gathering-Wives"
           ls
 
       - name: Build Executable
