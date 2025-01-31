@@ -44,7 +44,7 @@ jobs:
         uses: simbo/changes-between-tags-action@v1
         with:
           include-hashes: false
-          validate-tag: false
+          validate-tag: true
 
       - name: Get tag name
         id: tagName
