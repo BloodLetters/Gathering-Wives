@@ -39,6 +39,12 @@ jobs:
           set PYTHONIOENCODING=utf-8
           set PYTHONLEGACYWINDOWSSTDIO=utf-8
           echo PYTHONIOENCODING=utf-8 >> $GITHUB_ENV
+      - name: Get Changes between Tags
+        id: changes
+        uses: simbo/changes-between-tags-action@v1
+        with:
+          include-hashes: false
+          validate-tag: false
 
       - name: Get tag name
         id: tagName
@@ -91,3 +97,9 @@ jobs:
           prerelease: true
           files: |
             gathering-wives-${{ steps.tagName.outputs.tag }}.7z
+      - name: push to repo
+        run: |
+          python -m ok.update.push_repos \
+          --repos https://BloodLetters:${{ secrets.GH_TOKEN }}@github.com/BloodLetters/Gathering-Wives \
+          --files deploy.txt \
+          --tag ${{ steps.tagName.outputs.tag }}
