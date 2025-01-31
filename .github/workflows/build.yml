@@ -65,9 +65,6 @@ jobs:
           Get-ChildItem -Path .\src -Recurse -Filter *.pyx | ForEach-Object { Remove-Item $_.FullName }
           Get-ChildItem -Path .\src -Recurse -Filter *.cpp | ForEach-Object { Remove-Item $_.FullName }
 
-      - name: Debug Build Path
-        run: ls -lR ./
-
       - name: Run tests
         run: |
           Get-ChildItem -Path ".\tests\*.py" | ForEach-Object {
