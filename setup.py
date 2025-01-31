@@ -34,12 +34,12 @@ base_dir = "src"
 extensions = find_pyx_packages(base_dir)
 
 setuptools.setup(
-    name="ok-ww",
+    name="Gathering-Wives",
     version="0.0.1",
     author="ok-oldking",
     author_email="firedcto@gmail.com",
     description="Automation with Computer Vision for Python",
-    url="https://github.com/ok-oldking/ok-script",
+    url="https://github.com/BloodLetters/Gathering-Wives",
     packages=setuptools.find_packages(),
     include_package_data=True,
     classifiers=[
