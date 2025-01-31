@@ -47,22 +47,28 @@ class BaseCombatTask(CombatCheck):
         self.char_texts = ['char_1_text', 'char_2_text', 'char_3_text']
         self.add_text_fix({'Ｅ':'e'})
 
-    def send_key_and_wait_animation(self, key, check_function, total_wait=5, enter_animation_wait=0.5):
+    def send_key_and_wait_animation(self, key, check_function, total_wait=7, enter_animation_wait=0.7):
         start = time.time()
         animation_start = 0
         while time.time() - start < total_wait:
             if check_function():
                 if animation_start > 0:
+                    self._in_liberation = False
                     logger.debug(f'animation ended')
                     return
-                elif time.time() - start > enter_animation_wait:
-                    logger.info(f'Animation failed to start after sending key: {key}')
-                    return
-                self.send_key(key)  # Hapus after_sleep untuk respons lebih cepat
+                else:
+                    if time.time() - start > enter_animation_wait:
+                        logger.info(f'send_key_and_wait_animation failed to enter animation')
+                        return
+                    logger.debug(f'animation not started send key {key}')
+                    self.send_key(key, after_sleep=0.1)
             else:
                 if animation_start == 0:
                     animation_start = time.time()
+                    logger.debug(f'animation started: {animation_start}')
+                self._in_liberation = True
             self.next_frame()
+        logger.info(f'send_key_and_wait_animation timed out {key}')
 
     def teleport_to_heal(self):
         self.info['Death Count'] = self.info.get('Death Count', 0) + 1
@@ -100,43 +106,25 @@ class BaseCombatTask(CombatCheck):
             return True
 
     def combat_once(self, wait_combat_time=200, wait_before=1.5):
-        self.wait_until(self.in_combat, time_out=wait_combat_time, raise_if_not_found=True, wait_until_before_delay=wait_before)
+        self.wait_until(self.in_combat, time_out=wait_combat_time, raise_if_not_found=True,
+                        wait_until_before_delay=wait_before)
         self.load_chars()
         self.info['Combat Count'] = self.info.get('Combat Count', 0) + 1
-        while True:
+        while self.in_combat():
             try:
-                if not self.in_combat(): 
-                    logger.info('Force attacking to maintain combat state')
-                    self.get_current_char().perform()
-                else:
-                    logger.debug(f'combat_once loop {self.chars}')
-                    self.get_current_char().perform()
+                logger.debug(f'combat_once loop {self.chars}')
+                self.get_current_char().perform()
             except CharDeadException as e:
-                logger.error('Character is dead, attempting recovery.')
-                self.teleport_to_heal() 
+                raise e
+            except NotInCombatException as e:
+                logger.info(f'combat_once out of combat break {e}')
+                # self.screenshot(f'combat_once_ooc {self.out_of_combat_reason}')
                 break
-            except Exception as e:
-                logger.warning(f'Error in combat loop: {e}, retrying.')
-                continue
-
-            self.next_frame()
-
-    def combat_loop(self):
-        while True:
-            try:
-                if self.in_combat():
-                    char = self.get_current_char()
-                    char.perform()
-                else:
-                    logger.info("Character not in combat, forcing attack.")
-                    self.get_current_char().perform()
-            except CharDeadException:
-                logger.error("Character is dead. Exiting combat loop.")
-                break
-            except Exception as e:
-                logger.warning(f"Unexpected error: {e}, retrying.")
-                continue
-            self.next_frame()
+        self.combat_end()
+        self.wait_in_team_and_world(time_out=10)
+        self.sleep(1)
+        self.middle_click()
+        self.sleep(0.2)
 
     def run_in_circle_to_find_echo(self, circle_count=3):
         directions = ['w', 'a', 's', 'd']
@@ -159,34 +147,80 @@ class BaseCombatTask(CombatCheck):
         max_priority = Priority.MIN
         switch_to = current_char
         has_intro = free_intro
+        if not has_intro:
+            current_con = current_char.get_current_con()
+            if current_con > 0.8 and current_con != 1:
+                logger.info(f'switch_next_char current_con {current_con:.2f} almost full, sleep and check again')
+                self.sleep(0.05)
+                self.next_frame()
+                current_con = current_char.get_current_con()
+            if current_con == 1:
+                has_intro = True
         low_con = 200
 
-        for char in self.chars:
-            if char != current_char:
+        for i, char in enumerate(self.chars):
+            if char == current_char:
+                priority = Priority.CURRENT_CHAR
+            else:
                 priority = char.get_switch_priority(current_char, has_intro, target_low_con)
-                if target_low_con and char.current_con < low_con:
+                logger.info(
+                    f'switch_next_char priority: {char} {priority} {char.current_con} target_low_con {target_low_con}')
+            if target_low_con:
+                if char.current_con < low_con and char != current_char:
                     low_con = char.current_con
                     switch_to = char
-                elif priority > max_priority:
-                    max_priority = priority
+            elif priority == max_priority:
+                if char.last_perform < switch_to.last_perform:
+                    logger.debug(f'switch priority equal, determine by last perform')
                     switch_to = char
-
+            elif priority > max_priority:
+                max_priority = priority
+                switch_to = char
         if switch_to == current_char:
-            current_char.perform()  # Langsung serang jika tidak ada karakter lain yang lebih prioritas
-            return
-
+            # logger.warning(f"can't find next char to switch to, maybe switching too fast click and wait")
+            # if time.time() - current_char.last_perform < 0.1:
+            current_char.continues_normal_attack(0.2)
+            logger.warning(f"{current_char} can't find next char to switch to, performing too fast add a normal attack")
+            return current_char.switch_next_char()
+        switch_to.has_intro = has_intro
+        logger.info(f'switch_next_char {current_char} -> {switch_to} has_intro {switch_to.has_intro}')
+        last_click = 0
         start = time.time()
         while True:
             now = time.time()
-            if now - start > 3:  # Batasi waktu switch menjadi 3 detik
-                logger.warning(f'Switch timeout: {current_char} -> {switch_to}')
-                break
-            self.send_key(switch_to.index + 1)
-            if self.in_team()[1] == switch_to.index:
-                switch_to.is_current_char = True
+            if now - last_click > 0.1:
+                self.send_key(switch_to.index + 1)
+                last_click = now
+            in_team, current_index, size = self.in_team()
+            if not in_team:
+                logger.info(f'not in team while switching chars_{current_char}_to_{switch_to} {now - start}')
+                if self.debug:
+                    self.screenshot(f'not in team while switching chars_{current_char}_to_{switch_to} {now - start}')
+                confirm = self.wait_feature('revive_confirm_hcenter_vcenter', threshold=0.8, time_out=2)
+                if confirm:
+                    self.log_info(f'char dead')
+                    self.raise_not_in_combat(f'char dead', exception_type=CharDeadException)
+                if now - start > 5:
+                    self.raise_not_in_combat(
+                        f'switch too long failed chars_{current_char}_to_{switch_to}, {now - start}')
+                continue
+            switch_to.has_intro = switch_to.has_intro or current_char.is_con_full()
+            if current_index != switch_to.index:
+                if now - start > 10:
+                    if self.debug:
+                        self.screenshot(f'switch_not_detected_{current_char}_to_{switch_to}')
+                    self.raise_not_in_combat('failed switch chars')
+                else:
+                    self.next_frame()
+            else:
+                self.in_liberation = False
                 current_char.switch_out()
+                switch_to.is_current_char = True
                 break
-            self.next_frame()
+
+        if post_action:
+            post_action()
+        logger.info(f'switch_next_char end {(current_char.last_switch_time - start):.3f}s')
 
     def get_liberation_key(self):
         return self.key_config['Liberation Key']

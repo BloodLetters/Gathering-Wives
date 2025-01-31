@@ -67,19 +67,28 @@ class BaseChar:
         return False
 
     def perform(self):
-        # self.wait_down()
         self.last_perform = time.time()
-        self.do_perform()
+        try:
+            self.do_perform()
+        except Exception as e:
+            self.logger.error(f'Error in do_perform: {e}')
+            self.continues_normal_attack(1.0)  # Fallback to normal attack
         self.logger.debug(f'set current char false {self.index}')
 
+
     def wait_down(self):
+        timeout = time.time() + 5  # Timeout 5 detik
         while self.flying():
+            if time.time() > timeout:
+                self.logger.error('Timeout in wait_down, falling back to normal attack')
+                self.normal_attack()
+                break
             self.task.click()
             self.sleep(0.2)
 
-    def wait_intro(self, time_out=1.2, click=True):
-        if self.has_intro:
-            self.task.wait_until(self.down, post_action=self.click_with_interval if click else None, time_out=time_out, wait_until_before_delay=0,
+
+    def wait_intro(self, time_out=1.2,click=True):
+        self.task.wait_until(self.down, post_action=self.click_with_interval if click else None, time_out=time_out, wait_until_before_delay=0,
                                        wait_until_check_delay=0)
 
     def down(self):
@@ -101,8 +110,11 @@ class BaseChar:
             return self.switch_next_char()
         if self.click_echo():
             return self.switch_next_char()
+ 
+        self.logger.debug('Fallback to normal attack')
         self.continues_normal_attack(0.31)
         self.switch_next_char()
+
 
     def has_cd(self, box_name):
         return self.task.has_cd(box_name)
@@ -209,30 +221,40 @@ class BaseChar:
     def click_echo(self, duration=0, sleep_time=0):
         self.logger.debug(f'click_echo start duration: {duration}')
         if self.has_cd('echo'):
-            self.logger.debug('click_echo has cd return ')
+            self.logger.debug('click_echo has CD, falling back to normal attack')
+            self.normal_attack()
             return False
+
         clicked = False
         start = time.time()
         last_click = 0
+
         while True:
             self.check_combat()
             current = self.current_echo()
-            if not self.echo_available(current) and (duration == 0 or not clicked):
+            
+            if not self.echo_available(current):
+                self.logger.debug('click_echo not available, falling back to normal attack')
+                self.normal_attack()
                 break
+
             now = time.time()
-            if duration > 0 and start != 0:
-                if now - start > duration:
-                    break
+            if duration > 0 and now - start > duration:
+                break
+
             if now - last_click > 0.1:
                 if not clicked:
                     self.update_echo_cd()
                     clicked = True
                 self.task.send_key(self.get_echo_key())
                 last_click = now
+
             if now - start > 5:
                 self.logger.error(f'click_echo too long {clicked}')
                 break
+
             self.task.next_frame()
+
         self.logger.debug(f'click_echo end {clicked}')
         return clicked
 
@@ -244,53 +266,60 @@ class BaseChar:
         self.has_intro = False
 
     def click_liberation(self, con_less_than=-1, send_click=False, wait_if_cd_ready=0, timeout=5):
-        if con_less_than > 0:
-            if self.get_current_con() > con_less_than:
-                return False
-        self.logger.debug(f'click_liberation start')
+        # Cek apakah kondisi koneksi memadai
+        if con_less_than > 0 and self.get_current_con() > con_less_than:
+            return False
+
+        self.logger.debug('click_liberation start')
         start = time.time()
         last_click = 0
         clicked = False
-        while time.time() - start < wait_if_cd_ready and not self.liberation_available() and not self.has_cd(
-                'liberation'):
-            self.logger.debug(f'click_liberation wait ready {wait_if_cd_ready}')
+
+        # Menunggu cooldown siap
+        while time.time() - start < wait_if_cd_ready:
+            if self.liberation_available() or self.has_cd('liberation'):
+                break
             if send_click:
                 self.click(interval=0.1)
             self.task.next_frame()
-        while self.liberation_available():  # clicked and still in team wait for animation
-            self.logger.debug(f'click_liberation liberation_available click')
+
+        # Jika liberation tersedia, kirim perintah
+        while self.liberation_available():
             now = time.time()
-            if now - last_click > 0.1:
+            if now - last_click > 0.1:  # Menghindari spam klik
                 self.task.send_key(self.get_liberation_key())
                 self.liberation_available_mark = False
                 clicked = True
                 last_click = now
-            if time.time() - start > timeout:
-                self.task.raise_not_in_combat('too long clicking a liberation')
-            self.task.next_frame()
-        if clicked:
-            if self.task.wait_until(lambda: not self.task.in_team()[0], time_out=0.4, wait_until_before_delay=0):
-                self.task.in_liberation = True
-                self.logger.debug(f'not in_team successfully casted liberation')
-            else:
-                self.task.in_liberation = False
-                self.logger.error(f'clicked liberation but no effect')
+            if time.time() - start > timeout:  # Timeout keseluruhan proses
+                self.logger.error('click_liberation timeout while clicking liberation')
                 return False
-        start = time.time()
-        while not self.task.in_team()[0]:
-            self.task.in_liberation = True
-            clicked = True
-            if send_click:
-                self.click(interval=0.1)
-            if time.time() - start > 7:
-                self.task.in_liberation = False
-                self.task.raise_not_in_combat('too long a liberation, the boss was killed by the liberation')
             self.task.next_frame()
+
+        # Validasi efek liberation
+        if clicked:
+            if not self.task.wait_until(lambda: not self.task.in_team()[0], time_out=0.4):
+                self.task.in_liberation = False
+                self.logger.error('clicked liberation but no effect')
+                return False
+            self.task.in_liberation = True
+            self.logger.debug('liberation cast successfully')
+
+        # Menunggu hingga tim aktif kembali atau proses selesai
+        while not self.task.in_team()[0]:
+            if time.time() - start > 7:  # Timeout menunggu efek
+                self.logger.error('liberation timeout: boss killed or effect failed')
+                self.task.in_liberation = False
+                return False
+            self.task.next_frame()
+
+        # Catat durasi freeze untuk analisis
         duration = time.time() - start
         self.add_freeze_duration(start, duration)
         self.task.in_liberation = False
+
         if clicked:
-            self.logger.info(f'click_liberation end {duration}')
+            self.logger.info(f'click_liberation end successfully in {duration:.2f} seconds')
         return clicked
 
     def on_combat_end(self, chars):
@@ -327,10 +356,10 @@ class BaseChar:
 
     def get_switch_priority(self, current_char, has_intro, target_low_con):
         priority = self.do_get_switch_priority(current_char, has_intro, target_low_con)
-        # if priority < Priority.MAX and time.time() - self.last_switch_time < 0.9:
-        #     return Priority.SWITCH_CD  # switch cd
-        # else:
-        return priority
+        if priority < Priority.MAX and time.time() - self.last_switch_time < 0.9:
+            return Priority.SWITCH_CD  # switch cd
+        else:
+            return priority
 
     def do_get_switch_priority(self, current_char, has_intro=False, target_low_con=False):
         priority = 0

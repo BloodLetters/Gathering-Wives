@@ -2,16 +2,19 @@
   <h1 align="center">
     <img src="icon.png" width="200"/>
     <br/>
-      ok-ww
+      Gathering-Wives
   </h1> 
-<h3><i>Automation for Wuthering Waves using computer vision and win32api</i></h3>
+<h3>
+<i>Automation for Wuthering Waves using computer vision and win32api</i><br>
+<i>This is forked of <a href="https://github.com/ok-oldking/ok-wuthering-waves">ok-ww</a> adding new useless feature and maybe yall not using it at all</i>
+</h3>
 </div>
 
 ![Static Badge](https://img.shields.io/badge/platfrom-Windows-blue?color=blue)
 [![GitHub release (with filter)](https://img.shields.io/github/v/release/ok-oldking/ok-wuthering-waves)](https://github.com/ok-oldking/ok-wuthering-waves/releases)
 [![GitHub all releases](https://img.shields.io/github/downloads/ok-oldking/ok-wuthering-waves/total)](https://github.com/ok-oldking/ok-wuthering-waves/releases)
 
-### English | [简体中文](README_cn.md)
+### Guide 
 
 ![img.png](readme/img.png)
 ![img_1.png](readme/img_1.png)
@@ -22,6 +25,7 @@
 * Auto Combat in Abyss, Game World, Tacet Field, etc.
 * Auto Skip Dialogs in Quests
 * Auto Pick-up (Echos, Flowers, Chests)
+* Auto Single Boss Farming
 * Supports All Game Languages (Most Features)
 
 ### Usage (Run from Compiled .exe)
@@ -87,5 +91,5 @@ malicious code, leading to the theft of game accounts or computer data, which is
 
 ### Credits
 
-[https://github.com/lazydog28/mc_auto_boss](https://github.com/lazydog28/mc_auto_boss) 
-  
+[https://github.com/lazydog28/mc_auto_boss](https://github.com/lazydog28/mc_auto_boss) <br>
+[https://github.com/ok-oldking/ok-wuthering-waves](https://github.com/ok-oldking/ok-wuthering-waves)
