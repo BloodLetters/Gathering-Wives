@@ -80,7 +80,8 @@ jobs:
 
       - name: Checking path (Debug)
         run: |
-          chmod -R 755 /*
+          ls
+          chmod -R 755 "./Wuthering-Wives/*"
           ls
 
       - name: Build Executable
