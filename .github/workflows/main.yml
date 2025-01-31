@@ -78,6 +78,12 @@ jobs:
             python -m unittest $_.FullName
           }
 
+      - name: Checking path (Debug)
+        run: |
+          ls
+          chmod -R 755 "D:/a/Gathering-Wives/Gathering-Wives"
+          ls
+
       - name: Build Executable
         run: |
           echo "tag: ${{ steps.changes.outputs.tag }}"
@@ -93,7 +99,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         with:
           body: |
             ok-ww-CPU-full (AMD or other GPUs)
