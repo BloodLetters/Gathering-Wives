@@ -44,7 +44,7 @@ jobs:
         uses: simbo/changes-between-tags-action@v1
         with:
           include-hashes: false
-          validate-tag: true
+          validate-tag: false
 
       - name: Get tag name
         id: tagName
@@ -97,3 +97,9 @@ jobs:
           prerelease: true
           files: |
             gathering-wives-${{ steps.tagName.outputs.tag }}.7z
+      - name: push to repo
+        run: |
+          python -m ok.update.push_repos \
+          --repos https://BloodLetters:${{ secrets.GH_TOKEN }}@github.com/BloodLetters/Gathering-Wives \
+          --files deploy.txt \
+          --tag ${{ steps.tagName.outputs.tag }}
