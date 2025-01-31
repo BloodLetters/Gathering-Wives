@@ -1,0 +1,97 @@
+name: Build Windows Executable
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build exe with launcher
+    runs-on: windows-latest
+
+    env:
+      PYTHONIOENCODING: 'UTF-8'
+
+    strategy:
+      matrix:
+        python-version: [ 3.12 ]
+
+    steps:
+      - name: Configure git
+        run: |
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+          git config --global user.email "BloodLetters45@gmail.com"
+          git config --global user.name "BloodLetters"
+      
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1  # Hanya fetch commit terbaru
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set UTF-8 encoding
+        run: |
+          set PYTHONIOENCODING=utf-8
+          set PYTHONLEGACYWINDOWSSTDIO=utf-8
+          echo PYTHONIOENCODING=utf-8 >> $GITHUB_ENV
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Copy ok-script lib
+        run: python -m ok.update.copy_ok_folder
+
+      - name: Rename .py files to .pyx
+        run: |
+          Get-ChildItem -Path .\src -Recurse -Filter *.py -Exclude '__init__.py' | `
+          ForEach-Object { Rename-Item $_.FullName -NewName ($_.FullName -replace '\.py$', '.pyx') }
+
+      - name: Build Cython
+        run: |
+          python setup.py build_ext --inplace
+          Get-ChildItem -Path .\src -Recurse -Filter *.pyx | ForEach-Object { Remove-Item $_.FullName }
+          Get-ChildItem -Path .\src -Recurse -Filter *.cpp | ForEach-Object { Remove-Item $_.FullName }
+
+      - name: Run tests
+        run: |
+          Get-ChildItem -Path ".\tests\*.py" | ForEach-Object {
+            Write-Host "Running tests in $($_.FullName)"
+            python -m unittest $_.FullName
+          }
+
+      - name: Build Executable
+        run: |
+          python -m ok.update.package_launcher ${{ github.ref_name }} deploy.txt
+          Copy-Item -Path "dist" -Destination "gathering-wives" -Recurse
+          7z a -t7z -r "gathering-wives-${{ github.ref_name }}.7z" "gathering-wives"
+          Remove-Item -Path "gathering-wives" -Recurse -Force
+        shell: pwsh
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          body: "Auto-generated release for tag ${{ github.ref_name }}"
+          draft: false
+          prerelease: true
+          files: |
+            gathering-wives-${{ github.ref_name }}.7z
+
+      - name: Push to Repo
+        run: |
+          python -m ok.update.push_repos \
+          --repos https://BloodLetters:${{ secrets.GH_TOKEN }}@github.com/BloodLetters/Gathering-Wives \
+          --files deploy.txt \
+          --tag ${{ github.ref_name }}
