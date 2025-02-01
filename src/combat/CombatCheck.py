@@ -5,7 +5,6 @@ from ok import find_boxes_by_name, Logger
 from ok import find_color_rectangles, get_mask_in_color_range, is_pure_black
 from src import text_white_color
 from src.task.BaseWWTask import BaseWWTask
-from PIL import ImageGrab
 
 logger = Logger.get_logger(__name__)
 
@@ -25,7 +24,7 @@ class CombatCheck(BaseWWTask):
         self.boss_health_box = None
         self.boss_health = None
         self.out_of_combat_reason = ""
-        self.combat_check_interval = 0.5 # 1 
+        self.combat_check_interval = 1
         self._last_liberation = 0
         self._in_realm = False
 
@@ -113,29 +112,28 @@ class CombatCheck(BaseWWTask):
             if now - self.last_combat_check > self.combat_check_interval:
                 self.last_combat_check = now
                 if self.target_enemy(wait=True):
-                    return True
+                    return self.log_time(now, 'target_enemy')
+                logger.error('target_enemy failed, try recheck break out of combat')
                 return self.reset_to_false(recheck=True, reason='target enemy failed')
-            return True
-
-        start = time.time()
-        self._in_realm = self.in_realm()
-        if not self._in_realm:
-            self._in_multiplayer = self.in_multiplayer()
-
-        in_combat = (
-            self.has_target()
-            or (not self.check_team or self.in_team()[0])
-            and (self.check_health_bar() or self.find_boss_lv_text())
-        )
-        in_combat = in_combat and self.check_target_enemy_btn()
-
-        if in_combat:
-            if not self.target_enemy(wait=True):
-                return False
-            self._in_combat = True
-            return True
-
-        return False
+            else:
+                return True
+        else:
+            start = time.time()
+            self._in_realm = self.in_realm()
+            if not self._in_realm:
+                self._in_multiplayer = self.in_multiplayer()
+            in_combat = self.has_target() or ((not self.check_team or self.in_team()[0]) and self.check_health_bar())
+            in_combat = in_combat and self.check_target_enemy_btn()
+            if in_combat:
+                if not self.target_enemy(wait=True):
+                    # self.log_error(
+                    #     "Auto combat error: Make sure to turn off effect that changes the game color, (Game Gammar/Nvidia AMD Game Filter/HDR)",
+                    #     notify=True, tray=True)
+                    return False
+                logger.info(
+                    f'enter combat cost {(time.time() - start):2f} boss_lv_template:{self.boss_lv_template is not None} boss_health_box:{self.boss_health_box} has_count_down:{self.has_count_down}')
+                self._in_combat = True
+                return True
 
     @property
     def check_team(self):
@@ -173,28 +171,12 @@ class CombatCheck(BaseWWTask):
             return self.in_multiplayer()
 
     def has_target(self):
-        time.sleep(0.05)
         aim_percent = self.calculate_color_percentage(aim_color, self.get_box_by_name('box_target_enemy'))
-
+        # logger.debug(f'aim_percent {aim_percent}')
         if aim_percent < 0.005 and self.has_long_actionbar_chars():
             aim_percent = self.calculate_color_percentage(aim_color, self.get_box_by_name('box_target_enemy_long'))
-
         if aim_percent > 0.005:
             return True
-        else:
-            target_text = self.ocr(box=self.target_area_box, match=re.compile(r'Target:', re.IGNORECASE))
-            return bool(target_text)
-
-    def capture_area(self, box):
-        left = box.x
-        top = box.y
-        right = box.x + box.width
-        bottom = box.y + box.height
-
-        # Ambil screenshot area tertentu dari layar
-        screenshot = ImageGrab.grab(bbox=(left, top, right, bottom))
-        return screenshot
-
 
     def has_long_actionbar_chars(self):
         if not self._in_combat:
@@ -204,57 +186,64 @@ class CombatCheck(BaseWWTask):
             return True
         return False
 
+
     def target_enemy(self, wait=True):
         if not wait:
             self.middle_click()
         else:
-            retry_count = 3
-            for _ in range(retry_count):
-                if self.has_target():
-                    return True
-                else:
-                    logger.info(f'Target hilang, mencoba ulang...')
-                    self.middle_click()
-                    time.sleep(0.5)
-            logger.error('Gagal menargetkan musuh setelah beberapa percobaan.')
-            return False
+            if self.has_target():
+                return True
+            else:
+                logger.info(f'target lost try retarget')
+                return self.wait_until(self.has_target, time_out=3.1, wait_until_before_delay=0.1,
+                                       wait_until_check_delay=0.5,
+                                       pre_action=self.middle_click)
 
     def check_health_bar(self):
-        min_height = self.height_of_screen(12 / 2160)
-        max_height = min_height * 3
-        min_width = self.width_of_screen(12 / 3840)
+        if self._in_combat:
+            min_height = self.height_of_screen(12 / 2160)
+            max_height = min_height * 3
+            min_width = self.width_of_screen(12 / 3840)
+        else:
+            min_height = self.height_of_screen(12 / 2160)
+            max_height = min_height * 3
+            min_width = self.width_of_screen(100 / 3840)
 
         boxes = find_color_rectangles(self.frame, enemy_health_color_red, min_width, min_height, max_height=max_height)
+
         if len(boxes) > 0:
             self.draw_boxes('enemy_health_bar_red', boxes, color='blue')
             return True
-
-        boxes = find_color_rectangles(self.frame, boss_health_color, min_width, min_height * 1.3,
-                                    box=self.box_of_screen(1269 / 3840, 58 / 2160, 2533 / 3840, 200 / 2160))
-        if len(boxes) == 1:
-            self.boss_health_box = boxes[0]
-            self.boss_health = self.boss_health_box.crop_frame(self.frame)
-            self.draw_boxes('boss_health', boxes, color='blue')
-            return True
+        else:
+            boxes = find_color_rectangles(self.frame, boss_health_color, min_width, min_height * 1.3,
+                                          box=self.box_of_screen(1269 / 3840, 58 / 2160, 2533 / 3840, 200 / 2160))
+            if len(boxes) == 1:
+                self.boss_health_box = boxes[0]
+                self.boss_health_box.width = 10
+                self.boss_health_box.x += 6
+                self.boss_health = self.boss_health_box.crop_frame(self.frame)
+                self.draw_boxes('boss_health', boxes, color='blue')
+                return True
 
         return self.find_boss_lv_text()
 
     def find_boss_lv_text(self):
-        texts = self.ocr(
-            box=self.box_of_screen(1269 / 3840, 10 / 2160, 2533 / 3840, 140 / 2160, hcenter=True),
-            target_height=540,
-            name='boss_lv_text'
-        )
-        boss_lv_texts = find_boxes_by_name(texts, [re.compile(r'(?i)^L[Vv].*')])
+        texts = self.ocr(box=self.box_of_screen(1269 / 3840, 10 / 2160, 2533 / 3840, 140 / 2160, hcenter=True),
+                         target_height=540, name='boss_lv_text')
+        fps_text = find_boxes_by_name(texts,
+                                      re.compile(r'FPS', re.IGNORECASE))
+        if fps_text:
+            raise Exception('FPS text detected on screen, please close any FPS overlay!')
+        boss_lv_texts = find_boxes_by_name(texts,
+                                           [re.compile(r'(?i)^L[Vv].*')])
         if len(boss_lv_texts) > 0:
+            logger.debug(f'boss_lv_texts: {boss_lv_texts}')
             self.boss_lv_box = boss_lv_texts[0]
             self.boss_lv_template, self.boss_lv_mask = self.keep_boss_text_white()
             if self.boss_lv_template is None:
-                logger.error('Gagal mendeteksi teks level bos.')
+                self.boss_lv_box = None
                 return False
             return True
-        return False
-
 
     def keep_boss_text_white(self):
         cropped = self.boss_lv_box.crop_frame(self.frame)

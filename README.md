@@ -26,22 +26,21 @@
 * Auto Pick-up (Echos, Flowers, Chests)
 * Supports All Game Languages (Most Features)
 
-### Usage (Run from Compiled .exe)
-
-* Download `ok-ww.7z` from the latest releases
-* Extract and double-click the `ok-ww.exe`
-
 ### Usage (Run from Python Source Code)
 
 Use Python 3.12, other versions might work but are not tested.
 
 ```
+To run this program you need to run from source code
+
 git clone https://github.com/ok-oldking/ok-wuthering-waves
 pip install -r requirements.txt #install python dependencies
-python main.py # run the release version
+
+python main.py # use this for main version
+python main_gpu.py # run the gpu release version
+
 python main_debug.py # run the debug version
 python main_gpu_debug.py # run the gpu debug version
-python main_gpu.py # run the gpu release version
 ```
 
 ### Must Set Game Settings

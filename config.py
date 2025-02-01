@@ -86,17 +86,17 @@ config = {
     },
     'about': """
     <p style="color:red;">
-    <strong>本软件是免费开源的。</strong> 如果你被收费，请立即退款。请访问QQ频道或GitHub下载最新的官方版本。
+        <strong>This app is open source</strong> if you found somone selling it please report him!
     </p>
     <p style="color:red;">
-        <strong>本软件仅供个人使用，用于学习Python编程、计算机视觉、UI自动化等。</strong> 请勿将其用于任何营利性或商业用途。
+        <strong>This software is for personal use only</strong>, to learn Python programming, computer vision, UI automation, and others Please do not use it for non-profit or commercial purposes.
     </p>
     <p style="color:red;">
-        <strong>使用本软件可能会导致账号被封。</strong> 请在了解风险后再使用。
+        <strong>Using this software may result in your account being blocked</strong> and we will not be held responsible if that happens.
     </p>
 """,
     'screenshots_folder': "screenshots",
-    'gui_title': 'OK-WW',  # Optional
+    'gui_title': 'Gathering-Wives',  # Optional
     # 'coco_feature_folder': get_path(__file__, 'assets/coco_feature'),  # required if using feature detection
     'log_file': 'logs/ok-ww.log',  # Optional, auto rotating every day
     'error_log_file': 'logs/ok-ww_error.log',
